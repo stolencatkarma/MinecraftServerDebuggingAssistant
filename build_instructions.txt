@@ -1,0 +1,31 @@
+# Build Instructions for Minecraft Server Manager Executable
+
+## 1. Install PyInstaller
+
+You need PyInstaller to package the Python script into an executable. Install it with:
+
+    pip install pyinstaller
+
+## 2. Build the Executable
+
+From the project directory, run:
+
+    pyinstaller --noconfirm --onefile --windowed minecraft_server_manager.py
+
+- `--onefile`: Bundle everything into a single .exe
+- `--windowed`: No console window (for GUI apps)
+- `--noconfirm`: Overwrite previous builds without asking
+
+The output executable will be in the `dist/` folder.
+
+## 3. Distribute
+
+Distribute the `dist/minecraft_server_manager.exe` file. Users will need Java and a Minecraft server JAR.
+
+---
+
+# Optional: Add an Icon
+
+Add `--icon=icon.ico` to the command above if you have an icon file.
+
+# Optional: Include README and requirements.txt in your release zip.
