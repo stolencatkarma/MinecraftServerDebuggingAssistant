@@ -4,6 +4,7 @@ import os
 import threading
 import time
 import psutil
+import json
 from pathlib import Path
 from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QLineEdit, QTextEdit, QFileDialog, QMessageBox,
                               QGroupBox, QCheckBox)
@@ -17,6 +18,7 @@ class MinecraftServerManager(QWidget):
     def __init__(self):
         super().__init__()
         self.server_process = None
+        self.settings_file = "settings.json"
         self.server_jar_file = ""
         self.java_path = "java"
         self.min_ram = "1G"
@@ -29,6 +31,7 @@ class MinecraftServerManager(QWidget):
         self.timer.timeout.connect(self.update_buttons)
         self.timer.start(1000)
         self.output_signal.connect(self._append_output_gui)
+        self.load_settings()
 
     def init_ui(self):
         self.setWindowTitle("Minecraft Server Manager")
@@ -153,6 +156,52 @@ class MinecraftServerManager(QWidget):
         bottom_layout.addWidget(exit_btn)
         main_layout.addLayout(bottom_layout)
 
+    def closeEvent(self, event):
+        """Override close event to save settings before exiting."""
+        self.save_settings()
+        event.accept()
+
+    def load_settings(self):
+        """Load settings from the settings file."""
+        try:
+            if os.path.exists(self.settings_file):
+                with open(self.settings_file, 'r') as f:
+                    settings = json.load(f)
+                    self.server_jar_file = settings.get("server_jar_file", "")
+                    self.java_path = settings.get("java_path", "java")
+                    self.min_ram = settings.get("min_ram", "1G")
+                    self.max_ram = settings.get("max_ram", "4G")
+                    self.extra_args = settings.get("extra_args", "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200")
+                    self.nogui = settings.get("nogui", True)
+
+                    # Update UI elements with loaded settings
+                    self.jar_input.setText(self.server_jar_file)
+                    self.java_path_input.setText(self.java_path)
+                    self.min_ram_input.setText(self.min_ram)
+                    self.max_ram_input.setText(self.max_ram)
+                    self.args_input.setText(self.extra_args)
+                    self.nogui_checkbox.setChecked(self.nogui)
+                    self.log_output("Settings loaded.")
+        except (FileNotFoundError, json.JSONDecodeError) as e:
+            self.log_output(f"Could not load settings: {e}")
+
+    def save_settings(self):
+        """Save current settings to the settings file."""
+        settings = {
+            "server_jar_file": self.jar_input.text(),
+            "java_path": self.java_path_input.text(),
+            "min_ram": self.min_ram_input.text(),
+            "max_ram": self.max_ram_input.text(),
+            "extra_args": self.args_input.text(),
+            "nogui": self.nogui_checkbox.isChecked()
+        }
+        try:
+            with open(self.settings_file, 'w') as f:
+                json.dump(settings, f, indent=4)
+            self.log_output("Settings saved.")
+        except IOError as e:
+            self.log_output(f"Error saving settings: {e}")
+
     def is_server_running(self):
         if self.server_process is None:
             return False
@@ -196,6 +245,7 @@ class MinecraftServerManager(QWidget):
                 self.server_jar_file = selected_files[0]
                 self.jar_input.setText(self.server_jar_file)
                 self.log_output(f"Selected server JAR: {self.server_jar_file}")
+                self.save_settings()
         self.update_buttons()
 
     def start_server(self):
@@ -215,6 +265,9 @@ class MinecraftServerManager(QWidget):
             self.max_ram = self.max_ram_input.text().strip()
             self.extra_args = self.args_input.text().strip()
             self.nogui = self.nogui_checkbox.isChecked()
+            
+            # Save settings on start
+            self.save_settings()
             
             # Build the command
             server_dir = os.path.dirname(self.server_jar_file)
