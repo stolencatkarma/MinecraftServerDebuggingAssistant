@@ -10,6 +10,13 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                               QGroupBox, QCheckBox)
 from PySide6.QtCore import Qt, QTimer, Signal
 
+# Add MCP server import
+try:
+    from mcp.server.fastmcp import FastMCP
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+
 
 # Qt6 version
 class MinecraftServerManager(QWidget):
@@ -155,6 +162,17 @@ class MinecraftServerManager(QWidget):
         bottom_layout.addWidget(clear_btn)
         bottom_layout.addWidget(exit_btn)
         main_layout.addLayout(bottom_layout)
+
+        # MCP Activity indicator
+        mcp_layout = QHBoxLayout()
+        mcp_label = QLabel("MCP Activity:")
+        self.mcp_indicator = QLabel()
+        self.mcp_indicator.setFixedSize(20, 20)
+        self.mcp_indicator.setStyleSheet("background-color: gray; border-radius: 10px; border: 1px solid #888;")
+        mcp_layout.addWidget(mcp_label)
+        mcp_layout.addWidget(self.mcp_indicator)
+        mcp_layout.addStretch()
+        main_layout.addLayout(mcp_layout)
 
     def closeEvent(self, event):
         """Override close event to save settings before exiting."""
@@ -498,8 +516,68 @@ class MinecraftServerManager(QWidget):
             if success:
                 self.cmd_input.clear()  # Clear input box after sending
 
+    def blink_mcp_indicator(self):
+        self.mcp_indicator.setStyleSheet("background-color: green; border-radius: 10px; border: 1px solid #888;")
+        QTimer.singleShot(300, lambda: self.mcp_indicator.setStyleSheet("background-color: gray; border-radius: 10px; border: 1px solid #888;"))
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MinecraftServerManager()
     window.show()
+
+    # Start MCP server in the same process if available
+    if MCP_AVAILABLE:
+        import threading
+        mcp = FastMCP("minecraft-server-manager")
+
+        def blink():
+            QTimer.singleShot(0, window.blink_mcp_indicator)
+
+        @mcp.tool()
+        def start_minecraft_server() -> dict:
+            """Start the Minecraft server with the current settings (JAR, Java path, RAM, JVM args, nogui)."""
+            blink()
+            window.start_server()
+            return {"status": "started"}
+
+        @mcp.tool()
+        def stop_minecraft_server() -> dict:
+            """Stop the running Minecraft server gracefully."""
+            blink()
+            window.stop_server()
+            return {"status": "stopped"}
+
+        @mcp.tool()
+        def restart_minecraft_server() -> dict:
+            """Restart the Minecraft server (stop if running, then start with current settings)."""
+            blink()
+            window.restart_server()
+            return {"status": "restarted"}
+
+        @mcp.tool()
+        def send_minecraft_command(command: str) -> dict:
+            """Send a command string to the running Minecraft server console (e.g., 'say Hello')."""
+            blink()
+            success = window.send_command(command)
+            return {"success": success}
+
+        @mcp.tool()
+        def get_server_status() -> dict:
+            """Get the current running status of the Minecraft server (True if running, False if stopped)."""
+            blink()
+            running = window.is_server_running()
+            return {"running": running}
+
+        @mcp.tool()
+        def get_server_logs() -> dict:
+            """Get the full text output (logs) from the Minecraft server since it was started."""
+            blink()
+            return {"logs": window.output_area.toPlainText()}
+
+        def run_mcp():
+            mcp.run()
+        threading.Thread(target=run_mcp, daemon=True).start()
+    else:
+        print("[INFO] MCP server not available. Install the 'mcp' package to enable MCP capabilities.")
+
     sys.exit(app.exec())
