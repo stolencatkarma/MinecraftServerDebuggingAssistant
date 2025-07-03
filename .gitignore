@@ -1,0 +1,11 @@
+# Python build artifacts
+build/
+dist/
+*.spec
+
+# Py-cache
+__pycache__/
+*.pyc
+
+# VS Code
+.vscode/
